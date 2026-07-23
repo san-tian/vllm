@@ -442,6 +442,12 @@ class OutputProcessor:
         self.external_req_ids: defaultdict[str, list[str]] = defaultdict(list)
         self.lora_states = LoRARequestStates(log_stats)
         self.tracing_enabled = tracing_enabled
+        # Cache of the most recent SchedulerStats received from the engine
+        # core (one per step). Consumed by the /get_load endpoint to report
+        # aggregated num_running_reqs / num_waiting_reqs / kv_cache_usage_perc
+        # without a cross-process round-trip. May be None before the first
+        # engine step completes.
+        self._last_scheduler_stats: SchedulerStats | None = None
 
     def get_num_unfinished_requests(self):
         return len(self.request_states)
@@ -722,6 +728,7 @@ class OutputProcessor:
             self.parent_requests.pop(parent_req.request_id, None)
 
     def update_scheduler_stats(self, scheduler_stats: SchedulerStats | None):
+        self._last_scheduler_stats = scheduler_stats
         self.lora_states.update_scheduler_stats(scheduler_stats)
 
     def do_tracing(
